@@ -1,0 +1,63 @@
+#+TITLE: Depify
+
+** What?
+
+Creates or updates your deps.edn file, based on your project's project.clj.
+
+** Usage
+
+#+BEGIN_SRC sh
+
+curl -sq https://raw.githubusercontent.com/hagmonk/depify/master/src/depify/project.clj | clj -
+
+#+END_SRC
+
+*** Surgeon General's Warning
+Running arbitrary Clojure code from an arbitrary URL on the internet is known to
+cause cancer. But hey, if it feels good, go ahead and do it.
+
+** About
+
+Based on the initial concept in [[https://gist.github.com/swlkr/3f346c66410e5c60c59530c4413a248e][this gist]] by [[https://github.com/swlkr][Sean Walker]]. Depify improves on it slightly:
+
+*** Adds entries to existing deps.edn (replacing keys) rather than overwriting file
+
+*** Handles variable unquoting in project.clj
+
+project.clj 
+
+#+BEGIN_SRC clojure
+(def something "0.1.2")
+(defproject foobar
+  :dependencies [[something/gizmo ~something]])
+#+END_SRC
+
+deps.edn
+
+#+BEGIN_SRC clojure
+{:deps #:something{gizmo #:mvn{:version "0.1.2"}}}
+#+END_SRC
+
+*** Handles extra fields, with an extension point so other keys can be added over time
+
+project.clj
+
+#+BEGIN_SRC clojure
+
+(defproject foobar
+  :respositories [["dracular" "https//transy.edu"]]
+  :dependencies [[something/gizmo "9.9.9"]
+                 [org.apache/another-database "1.2.3" :exclusions [logging-nightmare]]]
+  :jvm-opts ["-XX:+EnormousBiceps"])
+
+#+END_SRC
+
+deps.edn
+
+#+BEGIN_SRC clojure
+{:deps
+ {something/gizmo #:mvn{:version "9.9.9"},
+  org.apache/another-database
+  {:mvn/version "1.2.3", :exclusions [logging-nightmare]}},
+ :jvm-opts ["-XX:+EnormousBiceps"]}
+#+END_SRC
