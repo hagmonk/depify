@@ -31,9 +31,10 @@
 
 (defn get-deps-edn
   [path]
-  (if (.exists (clojure.java.io/as-file path))
-    (clojure.edn/read-string (slurp path))
-    {}))
+  (try
+    (or (clojure.edn/read-string (slurp path)) {})
+    (catch Throwable ex
+      {})))
 
 (defmulti lein-key->deps (fn [_ x _] x))
 
@@ -71,14 +72,18 @@
       deps)))
 
 (defn pprint-write [m out-file]
+  (pprint/pprint m)
   (with-open [w (clojure.java.io/writer out-file)]
     (binding [*out* w]
       (pprint/pprint m))))
 
-(let [proj (get-project-clj "project.clj")]
+(defn -main [& args])
+
+(when-let [proj (get-project-clj "project.clj")]
     (-> "deps.edn"
         get-deps-edn
         (lein-key->deps :repositories proj)
         (lein-key->deps :dependencies proj)
         (lein-key->deps :jvm-opts proj)
         (pprint-write "deps.edn")))
+
