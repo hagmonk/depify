@@ -12,7 +12,7 @@ You can invoke it "over the air" as follows:
 curl -sq https://raw.githubusercontent.com/hagmonk/depify/master/src/depify/project.clj | clj -
 #+END_SRC
 
-Or, create an alias in your ~~/.clojure/deps.edn~ map:
+Or, create an alias in your ~/.clojure/deps.edn map:
 
 #+BEGIN_SRC clojure
 :depify {:extra-deps {org.clojure/clojure {:mvn/version "1.9.0"}
@@ -27,12 +27,12 @@ Or, create an alias in your ~~/.clojure/deps.edn~ map:
 Notice here I also have [[https://github.com/kkinnear/zprint][zprint]] as an alias, enabling this from your project folder:
 
 #+BEGIN_SRC sh
-clj -A:depify | clj -A:zprint
+clj -A:depify | clj -A:zprint > deps.edn.tmp ; mv deps.edn.tmp deps.edn
 #+END_SRC
 
-Note: depify will merge its results into any pre-existing deps.edn file in
-your project folder, but also print the result to stdout. Therefore, you should
-redirect zprint to a temporary file, then move it over deps.edn.
+Note: depify will merge its results into any pre-existing deps.edn file in your
+project folder, but also print the result to stdout. Also, the "Stream closed"
+exception emitted by zprint can be safely ignored.
 
 *** Surgeon General's Warning
 Running arbitrary Clojure code from an arbitrary URL on the internet is known to
