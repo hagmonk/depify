@@ -17,7 +17,7 @@ Create an alias in your ~/.clojure/deps.edn map:
 #+BEGIN_SRC clojure
 :depify {:extra-deps {org.clojure/clojure {:mvn/version "1.9.0"}
                       depify              {:git/url "https://github.com/hagmonk/depify"
-                                           :sha     "5bd166f0191cc8d57eecb36e50a6196de3991dea"}}
+                                           :sha     "4ccb5f6b56b13b41ba11ed56125d4d5dfe09d4ea"}}
          :main-opts  ["-m" "depify.project"]}
 :zprint {:extra-deps {org.clojure/clojure {:mvn/version "1.9.0"}
                       zprint              {:mvn/version "0.4.9"}}
