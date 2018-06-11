@@ -1,7 +1,7 @@
 (ns depify.project
   (:require
    [clojure.pprint :as pprint]
-   [clojure.zip :as z]))
+   [clojure.core.match :refer [match]]))
 
 (defn form-seq
   [^java.io.BufferedReader rdr]
@@ -14,21 +14,6 @@
     (binding [*read-eval* false]
       (doall (form-seq r)))))
 
-(defn get-form-path
-  [forms & path]
-  (let [node   (z/seq-zip forms)
-        search (reduce
-                (fn [node pred]
-                  (loop [n node]
-                    (cond
-                      (and (fn? pred) (pred (z/node n)))         n
-                      (and (not (fn? pred)) (= (z/node n) pred)) n
-                      (z/end? n)                                 (reduced nil)
-                      :else                                      (recur (z/next n)))))
-                node
-                path)]
-    (some-> search z/node)))
-
 (defn get-deps-edn
   [path]
   (try
@@ -36,54 +21,148 @@
     (catch Throwable ex
       {})))
 
-(defmulti lein-key->deps (fn [_ x _] x))
+(defn pprint-deps [m]
+  (binding [*print-namespace-maps* false]
+    (pprint/pprint m))
+  m)
 
-(defmethod lein-key->deps :dependencies
-  [deps _ form]
-  (let [dependencies (get-form-path form 'defproject :dependencies vector?)
-        deps-map (reduce
-                  (fn [m [path version & extra]]
-                    (let [coord {:mvn/version version}]
-                      (-> m
-                          (assoc path coord)
-                          (cond->
-                            (= :exclusions (first extra))
-                            (update path assoc :exclusions (second extra))
+(defmulti handle-key (fn [ctx k v] k))
 
-                            (and (seq? version)
-                                 (symbol? (second version)))
-                            (update path assoc :mvn/version (get-form-path form 'def (second version) string?))))))
-                  {}
-                  dependencies)]
-    (assoc deps :deps deps-map)))
+(defmethod handle-key :dependencies
+  [ctx k v]
+  (update ctx :deps
+          (fn [existing]
+            (reduce
+             (fn [m [path version & extra]]
+               (let [coord {:mvn/version version}
+                     mvn-extra (-> (apply hash-map extra)
+                                   (select-keys [:classifier :extensions :exclusions]))
+                     mvn-extra (if-let [e (:exclusions mvn-extra)]
+                                 (assoc mvn-extra :exclusions (mapv #(if (coll? %) (first %) %) e))
+                                 mvn-extra)]
+                 (assoc m (symbol path) (merge coord mvn-extra))))
+             existing
+             v))))
 
-(defmethod lein-key->deps :repositories
-  [deps _ form]
-  (let [repos (get-form-path form 'defproject :repositories vector?)]
-    (if repos
-      (assoc deps :mvn/repos (into {} repos))
-      deps)))
+(defmethod handle-key :repositories
+  [ctx k v]
+  (if (seq v)
+    (reduce (fn [m [rk rv]]
+              (if-let [u (and (map? rv) (:url rv))]
+                (assoc-in m [:mvn/repos rk :url] u)
+                (assoc-in m [:mvn/repos rk :url] rv)))
+            ctx
+            v)
+    ctx))
 
-(defmethod lein-key->deps :jvm-opts
-  [deps _ form]
-  (let [jvm-opts (get-form-path form 'defproject :jvm-opts vector?)]
-    (if jvm-opts
-      (assoc deps :jvm-opts jvm-opts)
-      deps)))
+(defmethod handle-key :default
+  [ctx k v]
+  (assoc ctx k v))
 
-(defn pprint-write [m out-file]
-  (pprint/pprint m)
-  (with-open [w (clojure.java.io/writer out-file)]
-    (binding [*out* w]
-      (pprint/pprint m))))
+(defmethod handle-key :jvm-opts
+  [ctx k v]
+  (if (seq v)
+    (assoc-in ctx [:aliases :run :jvm-opts] v)
+    ctx))
 
-(defn -main [& args])
+(defmethod handle-key :main
+  [ctx k v]
+  (if v
+    (assoc-in ctx [:aliases :run :main-opts] ["-m" (str v)])
+    ctx))
 
-(when-let [proj (get-project-clj "project.clj")]
-    (-> "deps.edn"
-        get-deps-edn
-        (lein-key->deps :repositories proj)
-        (lein-key->deps :dependencies proj)
-        (lein-key->deps :jvm-opts proj)
-        (pprint-write "deps.edn")))
+(defmethod handle-key :source-paths
+  [ctx k v]
+  (if (seq v)
+    (update ctx :paths (fnil into ["src"]) v)
+    ctx))
+
+(defmethod handle-key :resource-paths
+  [ctx k v]
+  (if (seq v)
+    (update ctx :paths (fnil into ["src"]) v)
+    ctx))
+
+(defmethod handle-key :test-paths
+  [ctx k v]
+  (if (seq v)
+    (update-in ctx [:aliases :test :extra-paths] (fnil into []) v)
+    ctx))
+
+(defmethod handle-key :profiles
+  [ctx k v]
+  (reduce-kv
+   (fn [m pk pv]
+     (let [opts (reduce-kv handle-key {} pv)]
+       (if-not (empty? opts)
+         (cond-> m
+           (-> opts :aliases :run)
+           (update-in [:aliases pk] (fnil merge {}) (-> opts :aliases :run))
+           
+           (-> opts :deps)
+           (update-in [:aliases pk :extra-deps] (fnil merge {}) (-> opts :deps)))
+         m)))
+   ctx
+   v))
+
+(defmethod handle-key :vars
+  [ctx k v]
+  (clojure.walk/prewalk
+   #(if-let [s (and
+                (seq? %)
+                (symbol? (second %))
+                (get v (second %)))]
+      s
+      %) ctx))
+
+(defn read-prj
+  [ctx forms]
+     (match [forms]
+            [([(['def a b] :seq)  & r] :seq)]
+            (recur (assoc-in ctx [:vars a] b) r)
+
+            [([(['defproject a v & r] :seq) & _] :seq)]
+            (recur (assoc ctx :name a) r)
+
+            [([k v & r] :seq)]
+            (recur (assoc ctx k v) r)
+           
+            :else ctx))
+
+(def ^:dynamic default-deps-template
+  {:aliases
+   {:test   {:extra-paths ["test"]
+             :extra-deps  {'org.clojure/test.check {:mvn/version "RELEASE"}}}
+    :runner {:extra-deps {'com.cognitect/test-runner
+                          {:git/url "https://github.com/cognitect-labs/test-runner"
+                           :sha     "76568540e7f40268ad2b646110f237a60295fa3c"}}
+             :main-opts  ["-m" "cognitect.test-runner"
+                          "-d" "test"]}}})
+(defn process
+  [ctx]
+  (let [known-keys [:dependencies
+                    :repositories
+                    :jvm-opts
+                    :source-paths
+                    :resource-paths
+                    :test-paths
+                    :main
+                    :profiles
+                    :vars]
+        result (->> known-keys
+                    (reduce
+                     (fn [ctx k]
+                       (let [v (k ctx)]
+                         (-> ctx
+                             (dissoc k)
+                             (handle-key k v))))
+                     (merge-with merge default-deps-template (dissoc ctx :aliases))))]
+    (select-keys result [:aliases :deps :paths :mvn/repos])))
+
+(defn -main [& args]
+  (when-let [proj (get-project-clj "project.clj")]
+    (->> proj
+         (read-prj (get-deps-edn "deps.edn"))
+         process
+         pprint-deps)))
 

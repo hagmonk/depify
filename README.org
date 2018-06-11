@@ -2,17 +2,17 @@
 
 ** What?
 
-Creates or updates your deps.edn file, based on your project's project.clj.
+*depify* reads your [[https://leiningen.org][Leiningen]] ~project.clj~ configuration file and produces a ~deps.edn~
+file suitable for the [[https://clojure.org/guides/deps_and_cli][Clojure CLI tools]].
+
+~deps.edn~ and the Clojure CLI tools have a narrower focus than Leiningen or
+Boot, but *depify* will do its best to produce a useful ~deps.edn~ replacement.
+This includes adding some test runner boilerplate from [[https://github.com/seancorfield/clj-new][clj-new]]. If you'd like
+additional functionality, pull requests are welcome!
 
 ** Usage
 
-You can invoke it "over the air" as follows:
-
-#+BEGIN_SRC sh
-curl -sq https://raw.githubusercontent.com/hagmonk/depify/master/src/depify/project.clj | clj -
-#+END_SRC
-
-Or, create an alias in your ~/.clojure/deps.edn map:
+Create an alias in your ~/.clojure/deps.edn map:
 
 #+BEGIN_SRC clojure
 :depify {:extra-deps {org.clojure/clojure {:mvn/version "1.9.0"}
@@ -24,62 +24,179 @@ Or, create an alias in your ~/.clojure/deps.edn map:
          :main-opts  ["-m" "zprint.main"]}
 #+END_SRC
 
-Notice here I also have [[https://github.com/kkinnear/zprint][zprint]] as an alias, enabling this from your project folder:
+Then, invoke *depify* in any folder that contains a project.clj:
+
+#+BEGIN_SRC sh
+clj -A:depify
+#+END_SRC
+
+*depify* will read any pre-existing deps.edn file in your project folder and use
+that as an initial starting point. The result of merging project.clj into
+deps.edn will be printed to standard out.
+
+Notice in my ~/.clojure/deps.edn I also have [[https://github.com/kkinnear/zprint][zprint]] as an alias, enabling this
+from your project folder:
 
 #+BEGIN_SRC sh
 clj -A:depify | clj -A:zprint > deps.edn.tmp ; mv deps.edn.tmp deps.edn
 #+END_SRC
 
-Note: depify will merge its results into any pre-existing deps.edn file in your
-project folder, but also print the result to stdout. Also, the "Stream closed"
-exception emitted by zprint can be safely ignored.
-
-*** Surgeon General's Warning
-Running arbitrary Clojure code from an arbitrary URL on the internet is known to
-cause cancer. But hey, if it feels good, go ahead and do it.
+You may see a "Stream closed" exception emitted by zprint, which can be safely
+ignored.
 
 ** About
 
-Based on the initial concept in [[https://gist.github.com/swlkr/3f346c66410e5c60c59530c4413a248e][this gist]] by [[https://github.com/swlkr][Sean Walker]]. Depify improves on it slightly:
+Based on the initial concept in [[https://gist.github.com/swlkr/3f346c66410e5c60c59530c4413a248e][this gist]] by [[https://github.com/swlkr][Sean Walker]]. *depify* improves on it slightly:
 
-*** Adds entries to existing deps.edn (replacing keys) rather than overwriting file
+*** Adds entries to the existing ~deps.edn~, if available
 
-*** Handles variable unquoting in project.clj
+deps.edn
+
+#+BEGIN_SRC clojure
+{:deps {ding/dong {:mvn/version "1.0"}}}
+#+END_SRC
+
+project.clj
+
+#+BEGIN_SRC clojure
+(defproject super-dooper "1.0"
+  :dependencies [[tick/tock "1.0"]])
+#+END_SRC
+
+deps.edn
+
+#+BEGIN_SRC clojure
+{:deps {ding/dong {:mvn/version "1.0"}, tick/tock {:mvn/version "1.0"}}}
+#+END_SRC
+
+*** Handles variable unquoting in ~project.clj~
 
 project.clj 
 
 #+BEGIN_SRC clojure
 (def something "0.1.2")
-(defproject foobar
+(defproject foobar "1.0"
   :dependencies [[something/gizmo ~something]])
 #+END_SRC
 
 deps.edn
 
 #+BEGIN_SRC clojure
-{:deps #:something{gizmo #:mvn{:version "0.1.2"}}}
+{:deps {something/gizmo {:mvn/version "0.1.2"}}}
 #+END_SRC
 
-*** Handles extra fields, with an extension point so other keys can be added over time
+*** Places lein's ~:main~ and ~:jvm-opts~ under an alias called ~:run~
 
 project.clj
 
 #+BEGIN_SRC clojure
+(defproject super-dooper "1.0"
+  :jvm-opts ["-XX:+EnormousBiceps"]
+  :main super-dooper.core
+  :dependencies [[ding/dong "1.0"]])
+#+END_SRC
 
-(defproject foobar
-  :respositories [["dracular" "https//transy.edu"]]
-  :dependencies [[something/gizmo "9.9.9"]
-                 [org.apache/another-database "1.2.3" :exclusions [logging-nightmare]]]
-  :jvm-opts ["-XX:+EnormousBiceps"])
+deps.edn
+
+#+BEGIN_SRC clojure
+{:aliases
+ {:run
+  {:jvm-opts ["-XX:+EnormousBiceps"],
+   :main-opts ["-m" "super-dooper.core"]}},
+ :deps {ding/dong {:mvn/version "1.0"}}}
+#+END_SRC
+
+*** Creates aliases for any ~:profiles~
+
+project.clj
+
+#+BEGIN_SRC clojure
+(defproject super-dooper "1.0"
+  :jvm-opts ["-XX:+EnormousBiceps"]
+  :main super-dooper.core
+  :dependencies [[ding/dong "1.0"]]
+  :profiles {:dev {:dependencies [[tick/tock "1.0"]]
+                   :jvm-opts ["-XX:+CrashAndBurn"]}})
+#+END_SRC
+
+deps.edn
+
+#+BEGIN_SRC clojure
+{:aliases
+ {:run
+  {:jvm-opts ["-XX:+EnormousBiceps"],
+   :main-opts ["-m" "super-dooper.core"]},
+  :dev
+  {:jvm-opts ["-XX:+CrashAndBurn"],
+   :extra-deps {tick/tock {:mvn/version "1.0"}}}},
+ :deps {ding/dong {:mvn/version "1.0"}}}
+#+END_SRC
+ 
+*** Adds ~:test-paths~ to the ~:test~ alias
+
+project.clj
+
+#+BEGIN_SRC clojure
+(defproject super-dooper "1.0"
+  :dependencies [[ding/dong "1.0"]]
+  :test-paths ["testomatic"])
+#+END_SRC
+
+deps.edn
+
+#+BEGIN_SRC clojure
+{:aliases
+ {:test
+  {:extra-paths ["test" "testomatic"],
+   :extra-deps {org.clojure/test.check {:mvn/version "RELEASE"}}},
+  :runner
+  {:extra-deps
+   {com.cognitect/test-runner
+    {:git/url "https://github.com/cognitect-labs/test-runner",
+     :sha "76568540e7f40268ad2b646110f237a60295fa3c"}},
+   :main-opts ["-m" "cognitect.test-runner" "-d" "test"]}},
+ :deps {ding/dong {:mvn/version "1.0"}}}
+#+END_SRC
+
+*** Adds ~:source-paths~ and ~:resource-paths~ to ~:paths~
+
+project.clj
+
+#+BEGIN_SRC clojure
+(defproject super-dooper "1.0"
+  :dependencies [[ding/dong "1.0"]]
+  :resource-paths ["more-resources"]
+  :source-paths ["more-sources"])
+#+END_SRC
+
+deps.edn
+
+#+BEGIN_SRC clojure
+{:deps  {ding/dong {:mvn/version "1.0"}},
+ :paths ["src" "more-sources" "more-resources"]}
+#+END_SRC
+
+*** Adds ~:respositories~ to ~:mvn/repos~
+
+project.clj
+
+#+BEGIN_SRC clojure
+(defproject super-dooper "1.0"
+  :dependencies [[ding/dong "1.0"]]
+  :repositories [["java.net" "https://download.java.net/maven/2"]
+                 ["releases"
+                  {:url      "https://blueant.com/archiva/internal"
+                   :username "milgrim",
+                   :password :env}]])
 
 #+END_SRC
 
 deps.edn
 
 #+BEGIN_SRC clojure
-{:deps
- {something/gizmo #:mvn{:version "9.9.9"},
-  org.apache/another-database
-  {:mvn/version "1.2.3", :exclusions [logging-nightmare]}},
- :jvm-opts ["-XX:+EnormousBiceps"]}
+{:deps {ding/dong {:mvn/version "1.0"}},
+ :mvn/repos
+ {"java.net" {:url "https://download.java.net/maven/2"},
+  "releases" {:url "https://blueant.com/archiva/internal"}}}
+
 #+END_SRC
