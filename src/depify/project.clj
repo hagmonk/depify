@@ -1,18 +1,27 @@
 (ns depify.project
   (:require
    [clojure.pprint :as pprint]
-   [clojure.core.match :refer [match]]))
+   [clojure.java.io :as io]
+   [clojure.core.match :refer [match]])
+  (:import (java.io InputStream)))
 
 (defn form-seq
   [^java.io.BufferedReader rdr]
   (when-let [form (read {:eof nil} rdr)]
     (cons form (lazy-seq (form-seq rdr)))))
 
-(defn get-project-clj [path]
-  (with-open [r (java.io.PushbackReader.
-                 (clojure.java.io/reader path))]
-    (binding [*read-eval* false]
-      (doall (form-seq r)))))
+(defn stream-available? [^InputStream stream]
+  (pos? (.available stream)))
+
+(defn get-project-clj
+  ([] (get-project-clj "project.clj"))
+  ([path]
+   (let [input (if (stream-available? System/in)
+                 *in*
+                 (io/as-file path))]
+     (with-open [r (java.io.PushbackReader. (io/reader input))]
+       (binding [*read-eval* false]
+         (doall (form-seq r)))))))
 
 (defn get-deps-edn
   [path]
@@ -160,7 +169,7 @@
     (select-keys result [:aliases :deps :paths :mvn/repos])))
 
 (defn -main [& args]
-  (when-let [proj (get-project-clj "project.clj")]
+  (when-let [proj (get-project-clj)]
     (->> proj
          (read-prj (get-deps-edn "deps.edn"))
          process

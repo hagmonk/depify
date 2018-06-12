@@ -12,6 +12,12 @@ example is the addition of the ~:test~ and ~:runner~ aliases borrowed from Sean
 Corfield's [[https://github.com/seancorfield/dot-clojure/blob/master/deps.edn#L9-L19][dot-clojure]] repo. Other aliases may be added in the future - PRs are
 always welcome!
 
+** Changelog
+*** 2018-06-12
+**** Add ability to read project.clj from stdin (fixes #2)
+*** 2018-06-11
+**** Hefty refactoring (fixes #1 and many other issues)
+
 ** Usage
 
 Create an alias in your ~/.clojure/deps.edn map:
@@ -46,7 +52,7 @@ clj -A:depify | clj -A:zprint > deps.edn.tmp ; mv deps.edn.tmp deps.edn
 You may see a "Stream closed" exception emitted by zprint, which can be safely
 ignored.
 
-** About
+** Features
 
 Based on the initial concept in [[https://gist.github.com/swlkr/3f346c66410e5c60c59530c4413a248e][this gist]] by [[https://github.com/swlkr][Sean Walker]]. *depify* improves on it slightly:
 
@@ -201,4 +207,12 @@ deps.edn
  {"java.net" {:url "https://download.java.net/maven/2"},
   "releases" {:url "https://blueant.com/archiva/internal"}}}
 
+#+END_SRC
+
+** Testing
+
+Tests can be invoked with:
+
+#+BEGIN_SRC sh
+clj -A:test
 #+END_SRC
