@@ -1,6 +1,6 @@
 #+TITLE: Depify
 
-** What?
+*** What?
 
 *depify* reads your [[https://leiningen.org][Leiningen]] ~project.clj~ configuration file and produces a ~deps.edn~
 file suitable for the [[https://clojure.org/guides/deps_and_cli][Clojure CLI tools]].
@@ -12,13 +12,15 @@ example is the addition of the ~:test~ and ~:runner~ aliases borrowed from Sean
 Corfield's [[https://github.com/seancorfield/dot-clojure/blob/master/deps.edn#L9-L19][dot-clojure]] repo. Other aliases may be added in the future - PRs are
 always welcome!
 
-** Changelog
-*** 2018-06-12
-**** Add ability to read project.clj from stdin (fixes #2)
-*** 2018-06-11
-**** Hefty refactoring (fixes #1 and many other issues)
+*** Changelog
+- 2018-06-13
+  - Add ability to read ~lein pprint~ output from stdin (actually fixes #2)
+- 2018-06-12
+  - Add ability to read ~project.clj~ from stdin (fixes #2)
+- 2018-06-11
+  - Hefty refactoring (fixes #1 and many other issues)
 
-** Usage
+*** Usage
 
 Create an alias in your ~/.clojure/deps.edn map:
 
@@ -32,15 +34,40 @@ Create an alias in your ~/.clojure/deps.edn map:
          :main-opts  ["-m" "zprint.main"]}
 #+END_SRC
 
-Then, invoke *depify* in any folder that contains a project.clj:
+Then, invoke *depify* in any folder that contains a ~project.clj~:
 
 #+BEGIN_SRC sh
 clj -A:depify
 #+END_SRC
 
-*depify* will read any pre-existing deps.edn file in your project folder and use
-that as an initial starting point. The result of merging project.clj into
+*depify* will read any pre-existing ~deps.edn~ file in your project folder and use
+that as an initial starting point. The result of merging ~project.clj~ into
 deps.edn will be printed to standard out.
+
+*depify* can also read ~project.clj~ files from stdin. This can be handy if, for
+instance, you want to import a pile of dependencies into your current ~deps.edn~
+from a remote ~project.clj~:
+
+#+BEGIN_SRC sh
+curl -L -o - "https://raw.githubusercontent.com/metasoarous/oz/master/project.clj" | clj -A:depify
+#+END_SRC
+
+*depify* can also interpret the output from [[https://github.com/technomancy/leiningen/tree/master/lein-pprint][lein pprint]]. This has the advantage
+of evaluating content inside ~project.clj~ - for instance, quoted variables are
+expanded, paths are resolved, etc.
+
+#+BEGIN_SRC sh
+lein pprint | clj -A:depify
+#+END_SRC
+
+~lein pprint~ can be invoked with a list of keys in order to extract specific
+values from the ~project.clj~ data. *depify* can handle any key that returns a
+list of maven coordinates, which will be interpreted as simple dependencies. The
+following will result in a dependency set that is the union of both keys:
+
+#+BEGIN_SRC sh
+lein pprint :dependencies :plugins | clj -A:depify
+#+END_SRC
 
 Notice in my ~/.clojure/deps.edn I also have [[https://github.com/kkinnear/zprint][zprint]] as an alias, enabling this
 from your project folder:
@@ -52,11 +79,11 @@ clj -A:depify | clj -A:zprint > deps.edn.tmp ; mv deps.edn.tmp deps.edn
 You may see a "Stream closed" exception emitted by zprint, which can be safely
 ignored.
 
-** Features
+*** Features
 
 Based on the initial concept in [[https://gist.github.com/swlkr/3f346c66410e5c60c59530c4413a248e][this gist]] by [[https://github.com/swlkr][Sean Walker]]. *depify* improves on it slightly:
 
-*** Adds entries to the existing ~deps.edn~, if available
+**** Adds entries to the existing ~deps.edn~, if available
 
 deps.edn
 
@@ -77,7 +104,7 @@ deps.edn
 {:deps {ding/dong {:mvn/version "1.0"}, tick/tock {:mvn/version "1.0"}}}
 #+END_SRC
 
-*** Handles variable unquoting in ~project.clj~
+**** Handles variable unquoting in ~project.clj~
 
 project.clj 
 
@@ -93,7 +120,7 @@ deps.edn
 {:deps {something/gizmo {:mvn/version "0.1.2"}}}
 #+END_SRC
 
-*** Places lein's ~:main~ and ~:jvm-opts~ under an alias called ~:run~
+**** Places lein's ~:main~ and ~:jvm-opts~ under an alias called ~:run~
 
 project.clj
 
@@ -114,7 +141,7 @@ deps.edn
  :deps {ding/dong {:mvn/version "1.0"}}}
 #+END_SRC
 
-*** Creates aliases for any ~:profiles~
+**** Creates aliases for any ~:profiles~
 
 project.clj
 
@@ -140,7 +167,7 @@ deps.edn
  :deps {ding/dong {:mvn/version "1.0"}}}
 #+END_SRC
  
-*** Adds ~:test-paths~ to the ~:test~ alias
+**** Adds ~:test-paths~ to the ~:test~ alias
 
 project.clj
 
@@ -166,7 +193,7 @@ deps.edn
  :deps {ding/dong {:mvn/version "1.0"}}}
 #+END_SRC
 
-*** Adds ~:source-paths~ and ~:resource-paths~ to ~:paths~
+**** Adds ~:source-paths~ and ~:resource-paths~ to ~:paths~
 
 project.clj
 
@@ -184,7 +211,7 @@ deps.edn
  :paths ["src" "more-sources" "more-resources"]}
 #+END_SRC
 
-*** Adds ~:respositories~ to ~:mvn/repos~
+**** Adds ~:respositories~ to ~:mvn/repos~
 
 project.clj
 
@@ -209,7 +236,7 @@ deps.edn
 
 #+END_SRC
 
-** Testing
+*** Testing
 
 Tests can be invoked with:
 

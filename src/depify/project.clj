@@ -124,19 +124,47 @@
       s
       %) ctx))
 
+(defn read-pprint
+  [ctx forms]
+  (match [forms]
+
+         [([(m :guard map?)] :seq)]
+         m
+         
+         [([(d :guard (comp vector? first)) & r] :seq)]
+         (recur (update ctx :dependencies (fnil into []) d) r)
+             
+         :else ctx))
+
+(defn read-project
+  [ctx forms]
+  (match [forms]
+         [([(['def a b] :seq)  & r] :seq)]
+         (recur (assoc-in ctx [:vars a] b) r)
+
+         [([(['defproject a v & r] :seq) & _] :seq)]
+         (recur (assoc ctx :name a) r)
+
+         [([k v & r] :seq)]
+         (recur (assoc ctx k v) r)
+         
+         :else ctx))
+
 (defn read-prj
   [ctx forms]
-     (match [forms]
-            [([(['def a b] :seq)  & r] :seq)]
-            (recur (assoc-in ctx [:vars a] b) r)
 
-            [([(['defproject a v & r] :seq) & _] :seq)]
-            (recur (assoc ctx :name a) r)
+  (match [forms]
+         [([(_ :guard map?)] :seq)]
+         (read-pprint ctx forms)
+         
+         [([(_ :guard (comp vector? first)) & _] :seq)]
+         (read-pprint ctx forms)
+         
+         [([(['def _ _] :seq) & _] :seq)]
+         (read-project ctx forms)
 
-            [([k v & r] :seq)]
-            (recur (assoc ctx k v) r)
-           
-            :else ctx))
+         [([(['defproject & _] :seq) & _] :seq)]
+         (read-project ctx forms)))
 
 (def ^:dynamic default-deps-template
   {:aliases
