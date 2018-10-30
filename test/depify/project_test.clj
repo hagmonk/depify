@@ -92,14 +92,17 @@
                  :main super-dooper.core
                  :dependencies [[ding/dong "1.0"]]
                  :profiles {:dev {:dependencies [[tick/tock "1.0"]]
-                                  :jvm-opts ["-XX:+CrashAndBurn"]}}))
+                                  :jvm-opts ["-XX:+CrashAndBurn"]
+                                  :source-paths ["resources"]
+                                  :resource-paths ["more-resources"]}}))
         answer '{:aliases
                  {:run
                   {:jvm-opts ["-XX:+EnormousBiceps"],
                    :main-opts ["-m" "super-dooper.core"]},
                   :dev
                   {:jvm-opts ["-XX:+CrashAndBurn"],
-                   :extra-deps {tick/tock {:mvn/version "1.0"}}}},
+                   :extra-deps {tick/tock {:mvn/version "1.0"}}
+                   :extra-paths ["src" "resources" "more-resources"]}},
                  :deps {ding/dong {:mvn/version "1.0"}}} ]
     (compare-helper form answer)))
 
