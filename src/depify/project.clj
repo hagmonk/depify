@@ -109,7 +109,10 @@
            (update-in [:aliases pk] (fnil merge {}) (-> opts :aliases :run))
            
            (-> opts :deps)
-           (update-in [:aliases pk :extra-deps] (fnil merge {}) (-> opts :deps)))
+           (update-in [:aliases pk :extra-deps] (fnil merge {}) (-> opts :deps))
+
+           (-> opts :paths)
+           (update-in [:aliases pk :extra-paths] (fnil into []) (-> opts :paths)))
          m)))
    ctx
    v))
