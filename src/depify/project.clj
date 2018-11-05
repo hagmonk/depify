@@ -107,9 +107,12 @@
          (cond-> m
            (-> opts :aliases :run)
            (update-in [:aliases pk] (fnil merge {}) (-> opts :aliases :run))
-           
+
            (-> opts :deps)
-           (update-in [:aliases pk :extra-deps] (fnil merge {}) (-> opts :deps)))
+           (update-in [:aliases pk :extra-deps] (fnil merge {}) (-> opts :deps))
+
+           (-> opts :paths)
+           (update-in [:aliases pk :extra-paths] (fnil into []) (-> opts :paths)))
          m)))
    ctx
    v))
@@ -130,10 +133,10 @@
 
          [([(m :guard map?)] :seq)]
          m
-         
+
          [([(d :guard (comp vector? first)) & r] :seq)]
          (recur (update ctx :dependencies (fnil into []) d) r)
-             
+
          :else ctx))
 
 (defn read-project
@@ -147,7 +150,7 @@
 
          [([k v & r] :seq)]
          (recur (assoc ctx k v) r)
-         
+
          :else ctx))
 
 (defn read-prj
@@ -156,10 +159,10 @@
   (match [forms]
          [([(_ :guard map?)] :seq)]
          (read-pprint ctx forms)
-         
+
          [([(_ :guard (comp vector? first)) & _] :seq)]
          (read-pprint ctx forms)
-         
+
          [([(['def _ _] :seq) & _] :seq)]
          (read-project ctx forms)
 
@@ -193,7 +196,10 @@
                          (-> ctx
                              (dissoc k)
                              (handle-key k v))))
-                     (merge-with merge default-deps-template (dissoc ctx :aliases))))]
+                     (assoc (merge-with merge default-deps-template (dissoc ctx :aliases))
+                       :paths ["src" "resources"])
+
+                     ))]
     (select-keys result [:aliases :deps :paths :mvn/repos])))
 
 (defn -main [& args]
