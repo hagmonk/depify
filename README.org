@@ -211,7 +211,7 @@ deps.edn
  :paths ["src" "more-sources" "more-resources"]}
 #+END_SRC
 
-**** Adds ~:respositories~ to ~:mvn/repos~
+**** Adds ~:repositories~ to ~:mvn/repos~
 
 project.clj
 
